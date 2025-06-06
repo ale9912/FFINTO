@@ -116,7 +116,7 @@
   </style>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, get, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDtI60BwTDVChvoeYAO-vqkhUItMPgELI0",
@@ -144,7 +144,7 @@
       return code;
     }
 
-    // 1) Crea Partita (solo host - non si usa direttamente da lobby)
+    // 1) Crea Partita (solo host, ma non useremo direttamente da qui)
     window.creaPartita = async function () {
       const nome = prompt("Inserisci il tuo nome da host:");
       if (!nome) return;
@@ -227,12 +227,6 @@
         }
       });
     }
-
-    // 5) L’host avvia la partita (chiamato da firebase.html con domanda/risposta corretta)
-    window.iniziaPartita = async function () {
-      if (!currentRoomCode) return;
-      // Questo non verrà più usato direttamente da lobby
-    }
   </script>
 </head>
 <body>
@@ -249,9 +243,7 @@
     <div id="lobby" style="display:none;">
       <h2>Lobby - Codice Stanza: <span id="codiceStanza"></span></h2>
       <ul id="playersList"></ul>
-      <button id="startBtn" style="display:none;">
-        Inizia Partita
-      </button>
+      <button id="startBtn" style="display:none;">Inizia Partita</button>
     </div>
   </div>
 </body>
