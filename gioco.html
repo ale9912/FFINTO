@@ -68,7 +68,7 @@
     const player = urlParams.get("player");
     document.getElementById("playerName").textContent = `Giocatore: ${player}`;
 
-    // Inizializza Firebase (metti qui le tue chiavi)
+    // Inizializza Firebase (metti qui le tue chiavi reali)
     const firebaseConfig = {
       apiKey: "TUO_API_KEY",
       authDomain: "TUO_DOMINIO.firebaseapp.com",
@@ -81,8 +81,6 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // Stato locale
-    let currentPhase = "input"; // "input", "vote", "result"
     let hasVoted = false;
     let hasAnswered = false;
 
@@ -115,7 +113,7 @@
       const answersObj = answersSnapshot.val() || {};
       const allAnswers = Object.entries(answersObj);
 
-      // Mescola e mostra
+      // Mescola e mostra le risposte finte + quella corretta
       answersContainer.innerHTML = "";
       allAnswers.sort(() => Math.random() - 0.5).forEach(([owner, text]) => {
         const div = document.createElement("div");
