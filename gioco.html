@@ -4,7 +4,7 @@
   <title>Gioco Finto - Gioco</title>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, onValue, set, update, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, set, push, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDtI60BwTDVChvoeYAO-vqkhUItMPgELI0",
@@ -19,221 +19,138 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Recupera parametri URL
-    function getParam(param) {
-      const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get(param);
-    }
+    const getParam = (param) => new URLSearchParams(window.location.search).get(param);
+    const room = getParam("room");
+    const player = getParam("player");
 
-    const currentRoomCode = getParam("room");
-    const currentPlayerName = getParam("player");
+    const domandaElem = document.getElementById("domanda");
+    const inputElem = document.getElementById("rispostaInput");
+    const buttonElem = document.getElementById("submitRisposta");
+    const container = document.getElementById("contenutoGioco");
+    const timerElem = document.getElementById("timer");
+    const votazioneElem = document.getElementById("votazione");
+    const roundTotali = 7;
 
-    // Stato interno
-    let fase = null; // "risposte", "votazioni", "classifica"
-    let timerInterval = null;
-    let timerCount = 0;
-    const TIMER_RISPOSTE = 45; // secondi
-    const TIMER_VOTAZIONI = 45; // secondi
-    let rispostaInviata = false;
-    let votato = false;
+    let currentRound = 1;
+    let fase = "attesa"; // "risposte", "votazione"
+    let intervalloTimer;
+    let tempo = 45;
 
-    // Elementi DOM
-    const titoloGiocoEl = document.getElementById("titoloGioco");
-    const domandaEl = document.getElementById("domanda");
-    const rispostaInputEl = document.getElementById("rispostaInput");
-    const submitRispostaEl = document.getElementById("submitRisposta");
-    const timerEl = document.getElementById("timer");
-    const messaggioEl = document.getElementById("messaggio");
-    const risposteContainerEl = document.getElementById("risposteContainer");
-    const classificaContainerEl = document.getElementById("classificaContainer");
-    const bottoneDomandaSuccessivaEl = document.getElementById("bottoneDomandaSuccessiva");
-
-    // Funzione per mostrare timer a schermo
-    function updateTimerDisplay() {
-      timerEl.innerText = `Tempo rimasto: ${timerCount} secondi`;
-    }
-
-    // Funzione per fermare timer
-    function stopTimer() {
-      if(timerInterval) clearInterval(timerInterval);
-      timerEl.innerText = "";
-    }
-
-    // Funzione per iniziare timer con durata specifica e callback al termine
-    function startTimer(seconds, onFinish) {
-      timerCount = seconds;
-      updateTimerDisplay();
-      timerInterval = setInterval(() => {
-        timerCount--;
-        updateTimerDisplay();
-        if(timerCount <= 0) {
-          stopTimer();
-          onFinish();
+    function startTimer(callback) {
+      tempo = 45;
+      timerElem.innerText = `Tempo rimasto: ${tempo}`;
+      intervalloTimer = setInterval(() => {
+        tempo--;
+        timerElem.innerText = `Tempo rimasto: ${tempo}`;
+        if (tempo <= 0) {
+          clearInterval(intervalloTimer);
+          callback();
         }
       }, 1000);
     }
 
-    // Funzione che aggiorna l’interfaccia in base alla fase
-    function aggiornaInterfaccia(stato) {
-      fase = stato.fase;
-      titoloGiocoEl.innerText = `Stanza: ${currentRoomCode} - Round ${stato.round || "?"}`;
-
-      if (fase === "risposte") {
-        domandaEl.innerText = stato.domanda || "Aspettando domanda...";
-        messaggioEl.innerText = "Inserisci la tua risposta finta!";
-        rispostaInputEl.style.display = "inline-block";
-        submitRispostaEl.style.display = "inline-block";
-        rispostaInputEl.disabled = false;
-        submitRispostaEl.disabled = rispostaInviata;
-        risposteContainerEl.style.display = "none";
-        classificaContainerEl.style.display = "none";
-        bottoneDomandaSuccessivaEl.style.display = "none";
-        votato = false;
-
-        // Avvia timer 45s per risposte
-        startTimer(TIMER_RISPOSTE, () => {
-          // Al termine 45s, spostarsi in votazioni automaticamente se host ha aggiornato la fase in firebase
-          // Qui puoi gestire qualcosa per sincronizzare, ma per ora solo alert
-          messaggioEl.innerText = "Tempo per rispondere scaduto!";
-          rispostaInputEl.disabled = true;
-          submitRispostaEl.disabled = true;
-        });
-      }
-
-      else if (fase === "votazioni") {
-        domandaEl.innerText = stato.domanda || "Aspettando domanda...";
-        messaggioEl.innerText = "Vota la risposta che pensi sia corretta!";
-        rispostaInputEl.style.display = "none";
-        submitRispostaEl.style.display = "none";
-        risposteContainerEl.style.display = "block";
-        classificaContainerEl.style.display = "none";
-        bottoneDomandaSuccessivaEl.style.display = "none";
-        votato = false;
-
-        // Mostra tutte le risposte (finte + corretta)
-        mostraRisposte(stato.risposte, stato.rispostaCorretta);
-
-        startTimer(TIMER_VOTAZIONI, () => {
-          messaggioEl.innerText = "Tempo per votare scaduto!";
-          // Se non ha votato, non fare nulla, oppure puoi disabilitare votazioni
-          // Mostra bottone domanda successiva solo se host ha cambiato fase a classifica (sincronizzato)
-        });
-      }
-
-      else if (fase === "classifica") {
-        rispostaInputEl.style.display = "none";
-        submitRispostaEl.style.display = "none";
-        risposteContainerEl.style.display = "none";
-        classificaContainerEl.style.display = "block";
-        bottoneDomandaSuccessivaEl.style.display = "inline-block";
-
-        mostraClassifica(stato.classifica);
-        messaggioEl.innerText = "Classifica aggiornata";
-
-        stopTimer();
-      }
+    function mostraDomanda(domanda) {
+      domandaElem.innerText = domanda;
+      inputElem.style.display = "inline";
+      buttonElem.style.display = "inline";
+      inputElem.disabled = false;
+      buttonElem.disabled = false;
+      votazioneElem.innerHTML = "";
     }
 
-    // Funzione per mostrare risposte e aggiungere evento click per votazione
-    function mostraRisposte(risposteObj, rispostaCorretta) {
-      risposteContainerEl.innerHTML = ""; // pulisci
-      // Aggiungi la risposta corretta prima (con classe speciale)
-      const correttaDiv = document.createElement("div");
-      correttaDiv.innerText = `Risposta corretta: ${rispostaCorretta}`;
-      correttaDiv.className = "risposta corretta";
-      correttaDiv.onclick = () => votaRisposta("CORRETTA");
-      risposteContainerEl.appendChild(correttaDiv);
+    function mostraRispostePerVotare(risposte, corretta) {
+      votazioneElem.innerHTML = "<h3>Vota la risposta corretta:</h3>";
+      const mescolate = [...risposte.map(r => ({ testo: r.risposta, autore: r.autore })), { testo: corretta, autore: "CORRETTA" }].sort(() => Math.random() - 0.5);
 
-      // Aggiungi risposte finte dei giocatori
-      for (const [player, risposta] of Object.entries(risposteObj || {})) {
-        const div = document.createElement("div");
-        div.innerText = `${player}: ${risposta}`;
-        div.className = "risposta finta";
-        div.onclick = () => votaRisposta(player);
-        risposteContainerEl.appendChild(div);
-      }
-    }
-
-    // Funzione per votare risposta (solo una volta)
-    function votaRisposta(playerRisposta) {
-      if (votato) {
-        alert("Hai già votato!");
-        return;
-      }
-      votato = true;
-      messaggioEl.innerText = `Hai votato: ${playerRisposta}`;
-
-      // Scrivi il voto su firebase sotto stanze/{room}/voti/{playerCurrent} = playerRisposta
-      set(ref(db, `stanze/${currentRoomCode}/voti/${currentPlayerName}`), playerRisposta)
-      .catch(err => alert("Errore voto: " + err.message));
-    }
-
-    // Funzione per inviare risposta finta
-    window.inviaRispostaFinta = () => {
-      const risposta = rispostaInputEl.value.trim();
-      if (!risposta) {
-        alert("Inserisci una risposta!");
-        return;
-      }
-      rispostaInviata = true;
-      rispostaInputEl.disabled = true;
-      submitRispostaEl.disabled = true;
-
-      // Salva risposta su firebase sotto stanze/{room}/risposte/{player}
-      set(ref(db, `stanze/${currentRoomCode}/risposte/${currentPlayerName}`), risposta)
-      .catch(err => alert("Errore invio risposta: " + err.message));
-    };
-
-    // Funzione per mostrare classifica (ordine decrescente punti)
-    function mostraClassifica(classificaObj) {
-      classificaContainerEl.innerHTML = "<h3>Classifica</h3>";
-      if(!classificaObj) {
-        classificaContainerEl.innerHTML += "<p>Classifica non disponibile.</p>";
-        return;
-      }
-      // Ordina per punti decrescente
-      const sorted = Object.entries(classificaObj).sort((a,b) => b[1] - a[1]);
-      sorted.forEach(([player, punti]) => {
-        const p = document.createElement("p");
-        p.innerText = `${player}: ${punti} punti`;
-        classificaContainerEl.appendChild(p);
+      mescolate.forEach(({ testo, autore }) => {
+        const btn = document.createElement("button");
+        btn.innerText = testo;
+        btn.onclick = () => inviaVoto(testo);
+        votazioneElem.appendChild(btn);
       });
     }
 
-    // Bottone domanda successiva click
-    window.domandaSuccessiva = () => {
-      // Qui l’host deve aggiornare la domanda, azzerare risposte e voti e cambiare fase a “risposte”
-      alert("Host: aggiorna manualmente la domanda e la fase in Firebase per passare al round successivo");
-      bottoneDomandaSuccessivaEl.style.display = "none";
+    function inviaRisposta() {
+      const risposta = inputElem.value.trim();
+      if (!risposta) return;
+      set(ref(db, `stanze/${room}/rounds/${currentRound}/risposte/${player}`), risposta);
+      inputElem.disabled = true;
+      buttonElem.disabled = true;
+    }
+
+    function inviaVoto(rispostaScelta) {
+      set(ref(db, `stanze/${room}/rounds/${currentRound}/voti/${player}`), rispostaScelta);
+      votazioneElem.innerHTML += "<p>Voto inviato!</p>";
+    }
+
+    function faseRisposta(domanda) {
+      fase = "risposte";
+      mostraDomanda(domanda);
+      startTimer(() => faseVotazione());
+    }
+
+    function faseVotazione() {
+      fase = "votazione";
+      inputElem.style.display = "none";
+      buttonElem.style.display = "none";
+
+      onValue(ref(db, `stanze/${room}/rounds/${currentRound}/risposte`), (snapshot) => {
+        const risposteObj = snapshot.val() || {};
+        const listaRisposte = Object.entries(risposteObj).map(([autore, risposta]) => ({ autore, risposta }));
+
+        onValue(ref(db, `stanze/${room}/rounds/${currentRound}/corretta`), (snap) => {
+          const corretta = snap.val();
+          mostraRispostePerVotare(listaRisposte, corretta);
+          startTimer(() => fineRound());
+        }, { onlyOnce: true });
+      }, { onlyOnce: true });
+    }
+
+    function fineRound() {
+      container.innerHTML = `<h2>Round ${currentRound} finito!</h2><p>Classifica in arrivo...</p>`;
+      // Puoi aggiungere qui la logica per calcolare la classifica
+
+      if (currentRound < roundTotali) {
+        const nextBtn = document.createElement("button");
+        nextBtn.innerText = "Domanda successiva";
+        nextBtn.onclick = () => {
+          currentRound++;
+          loadRound();
+        };
+        container.appendChild(nextBtn);
+      } else {
+        container.innerHTML += "<h2>Fine del gioco! Classifica finale in arrivo.</h2>";
+      }
+    }
+
+    function loadRound() {
+      container.innerHTML = "";
+      votazioneElem.innerHTML = "";
+      const roundRef = ref(db, `stanze/${room}/rounds/${currentRound}`);
+      onValue(roundRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.domanda) {
+          faseRisposta(data.domanda);
+        } else {
+          container.innerHTML = `<p>Attesa che l'host imposti la domanda del round ${currentRound}...</p>`;
+        }
+      }, { onlyOnce: true });
+    }
+
+    window.onload = () => {
+      document.getElementById("titoloGioco").innerText = `Stanza: ${room}`;
+      buttonElem.onclick = inviaRisposta;
+      loadRound();
     };
-
-    // Ascolto Firebase stanza per aggiornamenti (domanda, fase, risposte, voti, classifica)
-    const stanzaRef = ref(db, `stanze/${currentRoomCode}`);
-    onValue(stanzaRef, (snapshot) => {
-      const data = snapshot.val();
-      if(!data) return;
-
-      aggiornaInterfaccia(data);
-    });
-
   </script>
-  <style>
-    .risposta { padding: 5px; margin: 4px; border: 1px solid #ccc; cursor: pointer; }
-    .risposta.corretta { background-color: #d4edda; font-weight: bold; }
-    .risposta.finta:hover { background-color: #f8d7da; }
-  </style>
 </head>
 <body>
   <h1 id="titoloGioco">Gioco Finto</h1>
   <p id="domanda"></p>
-  <p id="messaggio"></p>
-  <p id="timer"></p>
-
   <input type="text" id="rispostaInput" placeholder="Scrivi la tua risposta finta">
-  <button id="submitRisposta" onclick="inviaRispostaFinta()">Invia Risposta</button>
-
-  <div id="risposteContainer" style="display:none;"></div>
-  <div id="classificaContainer" style="display:none;"></div>
-  <button id="bottoneDomandaSuccessiva" onclick="domandaSuccessiva()" style="display:none;">Domanda Successiva</button>
+  <button id="submitRisposta">Invia Risposta</button>
+  <p id="timer"></p>
+  <div id="contenutoGioco"></div>
+  <div id="votazione"></div>
 </body>
 </html>
