@@ -3,70 +3,142 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gioco Finto - Gioco</title>
+  <title>Gioco Finto - Partita</title>
   <style>
-    /* Stile base per la pagina di gioco */
+    /* Stili base per mobile/desktop */
     body {
       margin: 0;
+      padding: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: #121212;
       color: #eee;
       display: flex;
       justify-content: center;
-      padding: 20px;
+      align-items: flex-start;
+      min-height: 100vh;
       box-sizing: border-box;
+      padding: 10px;
     }
     #container {
-      max-width: 500px;
       width: 100%;
+      max-width: 500px;
       background: #1f1f1f;
       border-radius: 12px;
-      padding: 30px 25px;
+      padding: 20px;
       box-shadow: 0 8px 20px rgba(0,0,0,0.7);
-      text-align: center;
     }
-    h1 {
-      margin-bottom: 25px;
+    h1, h2 {
+      margin: 0 0 15px 0;
       color: #ffa726;
       text-shadow: 0 0 8px #ff9800;
+      text-align: center;
+    }
+    p {
+      margin: 0 0 15px 0;
+      font-size: 1rem;
+    }
+    #faseDescrizione {
+      margin-bottom: 20px;
+      font-size: 1.1rem;
+      text-align: center;
     }
     #domanda {
-      font-size: 1.4rem;
+      font-size: 1.2rem;
       margin-bottom: 20px;
-      min-height: 60px;
+      min-height: 50px;
+      text-align: center;
     }
+    #timer {
+      font-size: 1.1rem;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    #areaRisposta, #areaVotazione, #areaClassifica {
+      display: none;
+    }
+
+    /* Input & buttons */
     #rispostaInput {
       width: 100%;
       padding: 12px;
-      font-size: 1.1rem;
+      font-size: 1rem;
       border-radius: 6px;
       border: none;
-      margin-bottom: 15px;
+      margin-bottom: 10px;
       box-sizing: border-box;
     }
     button {
       background: #ff9800;
       border: none;
-      padding: 14px 20px;
-      border-radius: 25px;
-      font-size: 1.1rem;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 1rem;
       font-weight: 600;
       color: #121212;
       cursor: pointer;
       transition: background-color 0.3s ease;
       box-shadow: 0 4px 8px rgba(255, 152, 0, 0.5);
+      margin: 5px 0;
       width: 100%;
-      margin-bottom: 20px;
+      max-width: 100%;
     }
     button:hover {
       background: #ffa726;
       box-shadow: 0 6px 14px rgba(255, 152, 0, 0.8);
     }
+    #nextRoundBtn {
+      display: none;
+      background: #4caf50;
+      margin-top: 15px;
+    }
+
+    /* Lista risposte/voti */
+    .lista-button {
+      background: #333;
+      color: #eee;
+      margin: 5px 0;
+      text-align: left;
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .lista-button:hover {
+      background: #444;
+    }
+
+    /* Classifica */
+    #classificaLista {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 1rem;
+    }
+    #classificaLista li {
+      padding: 8px 12px;
+      background: #292929;
+      margin-bottom: 6px;
+      border-radius: 6px;
+    }
+    #classificaLista li.tu {
+      font-weight: bold;
+      color: #ffcc80;
+    }
   </style>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import {
+      getDatabase,
+      ref,
+      onValue,
+      set,
+      update,
+      get,
+      remove
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
+    // --- CONFIGURAZIONE FIREBASE ---
     const firebaseConfig = {
       apiKey: "AIzaSyDtI60BwTDVChvoeYAO-vqkhUItMPgELI0",
       authDomain: "finto-e2fb4.firebaseapp.com",
@@ -76,58 +148,352 @@
       appId: "1:149175040013:web:42e35c65e98761164e7d44",
       databaseURL: "https://finto-e2fb4-default-rtdb.firebaseio.com/"
     };
-
     const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+    const db  = getDatabase(app);
 
-    // Legge parametri URL room e player
+    // --- RECUPERO PARAMETRI DA URL ---
     function getParam(param) {
-      const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get(param);
+      const params = new URLSearchParams(window.location.search);
+      return params.get(param);
     }
-
     const currentRoomCode   = getParam("room");
     const currentPlayerName = getParam("player");
 
-    window.onload = () => {
-      // Mostra il titolo con codice stanza
-      document.getElementById("titoloGioco").innerText = `Stanza: ${currentRoomCode}`;
+    // --- DOM ELEMENTS ---
+    let titoloEl        = null;
+    let faseDescrEl     = null;
+    let domandaEl       = null;
+    let timerEl         = null;
+    let areaRispostaEl  = null;
+    let inputRispostaEl = null;
+    let btnSubmitRisposta = null;
+    let areaVotazioneEl   = null;
+    let votiListEl        = null;
+    let areaClassificaEl  = null;
+    let classificaListEl  = null;
+    let nextRoundBtn      = null;
 
-      // Ascolta la chiave 'domanda' nella stanza
-      const domandaRef = ref(db, `stanze/${currentRoomCode}/domanda`);
-      onValue(domandaRef, (snapshot) => {
-        const domanda = snapshot.val();
-        document.getElementById("domanda").innerText =
-          domanda || "Aspettando la domanda...";
+    // --- VARIABILI DI STATO CLIENT ---
+    let isHost = false;                   // se l’utente è host
+    let currentRound = 0;                 // indice round attuale (0..6)
+    const TOTAL_ROUNDS = 7;
+    let faseCorrente = "caricamento";     // "risposta", "votazione", "classifica"
+    let timerInterval = null;
+    let tempoRimasto = 0;
+    let rispostaInviata = false;         // segna se l’utente ha già inviato fake
+    let votoInviato      = false;         // segna se ha già votato in questa votazione
+
+    // --- DOMANDE E RISPOSTE CORRETTE (hardcoded per ora) ---
+    const domandeSet = [
+      { domanda: "Qual è la capitale della Mongolia?", rispostaCorretta: "Ulan Bator" },
+      { domanda: "In che anno è stato lanciato il primo iPhone?", rispostaCorretta: "2007" },
+      { domanda: "Quale animale è simbolo dell'Australia?", rispostaCorretta: "Canguro" },
+      { domanda: "Quanti pianeti ci sono nel sistema solare?", rispostaCorretta: "8" },
+      { domanda: "Qual è il fiume più lungo del mondo?", rispostaCorretta: "Nilo" },
+      { domanda: "Qual è la valuta del Giappone?", rispostaCorretta: "Yen" },
+      { domanda: "Qual è il montagna più alta del mondo?", rispostaCorretta: "Everest" }
+    ];
+
+    // --- CONFIGURAZIONE FIREBASE: struttura in DB ---
+    // stanze/{room}/round            : numero round corrente (0..6)
+    // stanze/{room}/fase             : "risposta", "votazione", "classifica"
+    // stanze/{room}/domanda          : testo della domanda corrente
+    // stanze/{room}/risposte/{round}/{player} : risposta finta
+    // stanze/{room}/voti/{round}/{playerVotante} = nomeRispostaScelta (testo)
+    // stanze/{room}/giocatori/{player}/punti  : punti totali
+
+    // --- FUNZIONE DI INIZIALIZZAZIONE ---
+    window.onload = () => {
+      // 1) Collego gli elementi del DOM
+      titoloEl         = document.getElementById("titoloGioco");
+      faseDescrEl      = document.getElementById("faseDescrizione");
+      domandaEl        = document.getElementById("domanda");
+      timerEl          = document.getElementById("timer");
+      areaRispostaEl   = document.getElementById("areaRisposta");
+      inputRispostaEl  = document.getElementById("rispostaInput");
+      btnSubmitRisposta= document.getElementById("submitRisposta");
+      areaVotazioneEl  = document.getElementById("areaVotazione");
+      votiListEl       = document.getElementById("votiList");
+      areaClassificaEl = document.getElementById("areaClassifica");
+      classificaListEl = document.getElementById("classificaList");
+      nextRoundBtn     = document.getElementById("nextRoundBtn");
+
+      titoloEl.innerText = `Stanza: ${currentRoomCode}`;
+
+      // 2) Controlla se esiste un nodo stanze/{room} 
+      get(ref(db, `stanze/${currentRoomCode}`)).then(snapshot => {
+        if (!snapshot.exists()) {
+          alert("Stanza non trovata o eliminata.");
+          window.location.href = "lobby.html";
+          return;
+        }
+        // Se esiste, capiamo se sei host
+        const data = snapshot.val();
+        isHost = (data.host === currentPlayerName);
+
+        // Se non esiste ancora round, inizializzalo a 0 e fase "risposta"
+        if (data.round === undefined) {
+          update(ref(db, `stanze/${currentRoomCode}`), {
+            round: 0,
+            fase: "risposta",
+            domanda: domandeSet[0].domanda
+          });
+        }
+
+        // 3) Ascolta in tempo reale il nodo stanze/{room}/round e stanze/{room}/fase
+        onValue(ref(db, `stanze/${currentRoomCode}`), (snap) => {
+          const stanzaData = snap.val();
+          if (!stanzaData) return;
+          currentRound = stanzaData.round;
+          faseCorrente = stanzaData.fase;
+
+          // Mostra fase attuale
+          aggiornaInterfacciaPerFase();
+        });
       });
     };
 
-    // Invio della risposta finta
+    // --- FUNZIONE PRINCIPALE CHE AGGIORNA L'INTERFACCIA A SECONDA DELLA FASE ---
+    function aggiornaInterfacciaPerFase() {
+      // Nascondi tutte le sezioni
+      areaRispostaEl.style.display = "none";
+      areaVotazioneEl.style.display = "none";
+      areaClassificaEl.style.display = "none";
+      nextRoundBtn.style.display = "none";
+
+      // Testo descrittivo della fase
+      if (faseCorrente === "risposta") {
+        faseDescrEl.innerText = `Round ${currentRound + 1} di ${TOTAL_ROUNDS}: inserisci la tua risposta finta`;
+        mostraFaseRisposta();
+      }
+      else if (faseCorrente === "votazione") {
+        faseDescrEl.innerText = `Round ${currentRound + 1} di ${TOTAL_ROUNDS}: vota la risposta più credibile`;
+        mostraFaseVotazione();
+      }
+      else if (faseCorrente === "classifica") {
+        faseDescrEl.innerText = `Classifica dopo il Round ${currentRound + 1}`;
+        mostraFaseClassifica();
+      }
+    }
+
+    // --- FASE RISPOSTA (45s per inviare fake) ---
+    function mostraFaseRisposta() {
+      // Imposta la domanda dal set di domande
+      const testoDomanda = domandeSet[currentRound].domanda;
+      domandaEl.innerText = testoDomanda;
+      // Mostra area di inserimento
+      areaRispostaEl.style.display = "block";
+      inputRispostaEl.disabled = false;
+      btnSubmitRisposta.disabled = false;
+      inputRispostaEl.value = "";
+      rispostaInviata = false;
+
+      // Avvia timer 45s
+      avviaTimer(45, () => {
+        // timeout scaduto: passa a votazione
+        if (!rispostaInviata) {
+          // in ogni caso disabilito l’input
+          inputRispostaEl.disabled = true;
+          btnSubmitRisposta.disabled = true;
+        }
+        if (isHost) {
+          // L’host, quando scade, salta a votazione scrivendo su Firebase
+          update(ref(db, `stanze/${currentRoomCode}`), {
+            fase: "votazione"
+          });
+        }
+      });
+    }
+
+    // Invio risposta finta
     window.inviaRispostaFinta = () => {
-      const risposta = document.getElementById("rispostaInput").value.trim();
-      if (!risposta) {
-        alert("Inserisci una risposta!");
+      const testo = inputRispostaEl.value.trim();
+      if (!testo) {
+        alert("Scrivi qualcosa!");
         return;
       }
-      set(ref(db, `stanze/${currentRoomCode}/risposte/${currentPlayerName}`), risposta)
+      // Memorizza in Firebase sotto stanze/{room}/risposte/{round}/{player}
+      set(ref(db, `stanze/${currentRoomCode}/risposte/${currentRound}/${currentPlayerName}`), testo)
         .then(() => {
-          alert("Risposta inviata!");
-          document.getElementById("rispostaInput").disabled = true;
-          document.getElementById("submitRisposta").disabled = true;
+          rispostaInviata = true;
+          inputRispostaEl.disabled = true;
+          btnSubmitRisposta.disabled = true;
         })
-        .catch(err => {
-          alert("Errore invio risposta: " + err.message);
-        });
+        .catch(err => alert("Errore invio risposta: " + err.message));
     };
+
+    // --- FASE VOTAZIONE (45s per votare) ---
+    function mostraFaseVotazione() {
+      domandaEl.innerText = "Caricamento risposte da votare...";
+      areaVotazioneEl.style.display = "block";
+      votiListEl.innerHTML = "";
+      votoInviato = false;
+
+      // Recupera tutte le risposte del round e la risposta corretta
+      get(ref(db, `stanze/${currentRoomCode}/risposte/${currentRound}`)).then(snap => {
+        const fakeObj = snap.val() || {};
+        // Converte in array di {player, testo}
+        let arrayRisposte = Object.entries(fakeObj).map(([p, t]) => ({ player: p, testo: t }));
+        // Aggiunge la risposta vera con player="__VERA__"
+        arrayRisposte.push({ player: "__VERA__", testo: domandeSet[currentRound].rispostaCorretta });
+        // Mescola
+        for (let i = arrayRisposte.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arrayRisposte[i], arrayRisposte[j]] = [arrayRisposte[j], arrayRisposte[i]];
+        }
+        // Mostra bottoni per ciascuna risposta
+        votiListEl.innerHTML = "";
+        arrayRisposte.forEach(item => {
+          const btn = document.createElement("button");
+          btn.className = "lista-button";
+          btn.innerText = item.testo;
+          btn.onclick = () => inviaVoto(item);
+          votiListEl.appendChild(btn);
+        });
+
+        // Imposta timer 45s
+        avviaTimer(45, () => {
+          if (isHost) {
+            // L’host, quando scade, passa in classifica
+            update(ref(db, `stanze/${currentRoomCode}`), {
+              fase: "classifica"
+            });
+          }
+        });
+      });
+    }
+
+    // Invio voto
+    function inviaVoto(itemScelto) {
+      if (votoInviato) return;
+      votoInviato = true;
+      // Salva su Firebase: stanze/{room}/voti/{round}/{playerVotante} = testoScelto
+      set(ref(db, `stanze/${currentRoomCode}/voti/${currentRound}/${currentPlayerName}`), itemScelto)
+        .catch(err => alert("Errore invio voto: " + err.message));
+    }
+
+    // --- FASE CLASSIFICA ---
+    function mostraFaseClassifica() {
+      // Mostra solo la classifica e il bottone next
+      areaClassificaEl.style.display = "block";
+      classificaListEl.innerHTML = "";
+
+      // Calcola i punti aggiornati: bisogna leggere voti e risposte finta
+      get(ref(db, `stanze/${currentRoomCode}/giocatori`)).then(snapGioc => {
+        let classificaObj = {};
+        const giocatoriObj = snapGioc.val() || {};
+        // Copia punti esistenti (per tenerli)
+        Object.entries(giocatoriObj).forEach(([nome, obj]) => {
+          classificaObj[nome] = obj.punti || 0;
+        });
+
+        // Leggi voti di questo round
+        get(ref(db, `stanze/${currentRoomCode}/voti/${currentRound}`)).then(snapVoti => {
+          const votiObj = snapVoti.val() || {};
+
+          // Per ogni votante
+          Object.entries(votiObj).forEach(([votante, votoScelto]) => {
+            // Se ha votato la propria risposta finta -> -1 punto
+            if (votoScelto.player === votante) {
+              classificaObj[votante] = (classificaObj[votante] || 0) - 1;
+            }
+            // Se ha votato la risposta vera -> +2 punti
+            else if (votoScelto.player === "__VERA__") {
+              classificaObj[votante] = (classificaObj[votante] || 0) + 2;
+            }
+            // Altrimenti (ha votato la finta di un altro) -> +3 al creatore di quella finta
+            else {
+              const autoreFinta = votoScelto.player;
+              classificaObj[autoreFinta] = (classificaObj[autoreFinta] || 0) + 3;
+            }
+          });
+
+          // Salva i nuovi punteggi su Firebase
+          Object.entries(classificaObj).forEach(([nome, punti]) => {
+            update(ref(db, `stanze/${currentRoomCode}/giocatori/${nome}`), { punti });
+          });
+
+          // Ora mostra la classifica ordinata
+          const ord = Object.entries(classificaObj)
+            .sort((a,b) => b[1] - a[1]); // decrescente
+          ord.forEach(([nome, punti]) => {
+            const li = document.createElement("li");
+            li.textContent = `${nome}: ${punti} punti`;
+            if (nome === currentPlayerName) li.classList.add("tu");
+            classificaListEl.appendChild(li);
+          });
+
+          // Se l’host, mostra il pulsante “Domanda successiva”
+          if (isHost) {
+            if (currentRound < TOTAL_ROUNDS - 1) {
+              nextRoundBtn.style.display = "block";
+            } else {
+              nextRoundBtn.innerText = "Partita terminata";
+              nextRoundBtn.disabled = true;
+              nextRoundBtn.style.display = "block";
+            }
+          }
+        });
+      });
+    }
+
+    // L’host fa partire il round successivo
+    nextRoundBtn.onclick = () => {
+      if (!isHost) return;
+      // Cancella risposte e voti di questo round (opzionale, ma pulisce DB)
+      remove(ref(db, `stanze/${currentRoomCode}/risposte/${currentRound}`));
+      remove(ref(db, `stanze/${currentRoomCode}/voti/${currentRound}`));
+      // Incrementa round e imposta fase a “risposta” e nuova domanda
+      const nuovoRound = currentRound + 1;
+      update(ref(db, `stanze/${currentRoomCode}`), {
+        round: nuovoRound,
+        fase: "risposta",
+        domanda: domandeSet[nuovoRound].domanda
+      });
+      // Il listener onValue aggiornerà automaticamente l’interfaccia
+    };
+
+    // --- FUNZIONE UTILE: timer conto alla rovescia ---
+    function avviaTimer(secondi, callbackScadenza) {
+      if (timerInterval) clearInterval(timerInterval);
+      let t = secondi;
+      timerEl.innerText = `Tempo rimasto: ${t}s`;
+      timerInterval = setInterval(() => {
+        t--;
+        timerEl.innerText = `Tempo rimasto: ${t}s`;
+        if (t <= 0) {
+          clearInterval(timerInterval);
+          callbackScadenza();
+        }
+      }, 1000);
+    }
+
   </script>
 </head>
 <body>
   <div id="container">
     <h1 id="titoloGioco">Gioco Finto</h1>
-    <p id="domanda">Caricamento domanda...</p>
+    <p id="faseDescrizione">Caricamento partita…</p>
+    <p id="domanda"></p>
+    <p id="timer"></p>
 
-    <input type="text" id="rispostaInput" placeholder="Scrivi la tua risposta finta" />
-    <button id="submitRisposta" onclick="inviaRispostaFinta()">Invia Risposta</button>
+    <!-- 1) AREA INSERIMENTO RISPOSTA FINTA -->
+    <div id="areaRisposta">
+      <input type="text" id="rispostaInput" placeholder="Scrivi la tua risposta finta" />
+      <button id="submitRisposta" onclick="inviaRispostaFinta()">Invia Risposta</button>
+    </div>
+
+    <!-- 2) AREA VOTAZIONE -->
+    <div id="areaVotazione">
+      <div id="votiList"></div>
+    </div>
+
+    <!-- 3) AREA CLASSIFICA E NEXT ROUND -->
+    <div id="areaClassifica">
+      <h2>Classifica</h2>
+      <ul id="classificaList"></ul>
+      <button id="nextRoundBtn">Domanda Successiva</button>
+    </div>
   </div>
 </body>
 </html>
