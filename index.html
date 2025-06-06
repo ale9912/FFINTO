@@ -116,7 +116,7 @@
   </style>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue, update, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, get, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDtI60BwTDVChvoeYAO-vqkhUItMPgELI0",
@@ -144,9 +144,9 @@
       return code;
     }
 
-    // 1) Crea Partita
+    // 1) Crea Partita (solo host - non si usa direttamente da lobby)
     window.creaPartita = async function () {
-      const nome = prompt("Inserisci il tuo nome:");
+      const nome = prompt("Inserisci il tuo nome da host:");
       if (!nome) return;
 
       const codice = generaCodice();
@@ -155,7 +155,7 @@
       isHost = true;
 
       // Scrivo la stanza in Firebase (stato: attesa)
-      await set(ref(db, `stanze/${codice}`), {
+      await update(ref(db, `stanze/${codice}`), {
         host: nome,
         stato: "attesa",
         giocatori: {
@@ -166,9 +166,9 @@
       mostraLobby();
     }
 
-    // 2) Unisciti a Partita
+    // 2) Unisciti a Partita (partecipante)
     window.unisciti = async function () {
-      const codice = prompt("Codice stanza:");
+      const codice = prompt("Inserisci il codice stanza:");
       const nome = prompt("Il tuo nome:");
       if (!codice || !nome) return;
 
@@ -222,21 +222,16 @@
       onValue(roomRef, (snapshot) => {
         const roomData = snapshot.val();
         if (roomData && roomData.stato === "inCorso") {
-          // Redirect per TUTTI i giocatori
-          window.location.href = 
+          window.location.href =
             `gioco.html?room=${codice}&player=${encodeURIComponent(currentPlayerName)}`;
         }
       });
     }
 
-    // 5) L’host avvia la partita
+    // 5) L’host avvia la partita (chiamato da firebase.html con domanda/risposta corretta)
     window.iniziaPartita = async function () {
       if (!currentRoomCode) return;
-      await update(ref(db, `stanze/${currentRoomCode}`), {
-        stato: "inCorso",
-        domanda: "Qual è la capitale della Mongolia?"
-      });
-      // L'host stesso verrà inoltrato nel listener di sopra.
+      // Questo non verrà più usato direttamente da lobby
     }
   </script>
 </head>
@@ -254,7 +249,7 @@
     <div id="lobby" style="display:none;">
       <h2>Lobby - Codice Stanza: <span id="codiceStanza"></span></h2>
       <ul id="playersList"></ul>
-      <button id="startBtn" onclick="iniziaPartita()" style="display:none;">
+      <button id="startBtn" style="display:none;">
         Inizia Partita
       </button>
     </div>
