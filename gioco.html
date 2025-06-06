@@ -1,10 +1,122 @@
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
-  <title>Gioco Finto - Gioco</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gioco Finto - Lobby</title>
+  <style>
+    /* Stile base per la lobby */
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #121212;
+      color: #eee;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #container {
+      background: #1f1f1f;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+      width: 320px;
+      max-width: 100%;
+      text-align: center;
+    }
+    h1 {
+      margin-bottom: 20px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #ffa726;
+      text-shadow: 0 0 8px #ff9800;
+      font-size: 1.8rem;
+    }
+    button {
+      background: #ff9800;
+      border: none;
+      padding: 14px 24px;
+      border-radius: 30px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #121212;
+      cursor: pointer;
+      margin: 12px 6px;
+      transition: background-color 0.3s ease;
+      box-shadow: 0 4px 8px rgba(255, 152, 0, 0.5);
+      width: 140px;
+      max-width: 90vw;
+      word-break: break-word;
+    }
+    button:hover {
+      background: #ffa726;
+      box-shadow: 0 6px 14px rgba(255, 152, 0, 0.8);
+    }
+    #lobby {
+      margin-top: 20px;
+      background: #292929;
+      padding: 15px 20px;
+      border-radius: 12px;
+      box-shadow: inset 0 0 12px rgba(255, 152, 0, 0.3);
+    }
+    #codiceStanza {
+      font-weight: 700;
+      font-size: 1.6rem;
+      color: #ffb74d;
+      letter-spacing: 3px;
+    }
+    ul#playersList {
+      list-style: none;
+      padding-left: 0;
+      margin: 12px 0 20px 0;
+      max-height: 150px;
+      overflow-y: auto;
+      text-align: left;
+      font-size: 1.1rem;
+    }
+    ul#playersList li {
+      padding: 10px 14px;
+      background: #3a3a3a;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      font-weight: 600;
+      color: #fff3e0;
+    }
+    @media (max-width: 480px) {
+      #container {
+        padding: 25px 20px;
+        width: 90vw;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+      button {
+        width: 100%;
+        font-size: 1.2rem;
+        padding: 16px 0;
+        margin: 10px 0;
+      }
+      #codiceStanza {
+        font-size: 1.8rem;
+        letter-spacing: 4px;
+      }
+      ul#playersList {
+        font-size: 1.2rem;
+        max-height: 200px;
+      }
+      ul#playersList li {
+        padding: 12px 16px;
+        margin-bottom: 12px;
+      }
+    }
+  </style>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, set, push, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, get, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDtI60BwTDVChvoeYAO-vqkhUItMPgELI0",
@@ -19,138 +131,128 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const getParam = (param) => new URLSearchParams(window.location.search).get(param);
-    const room = getParam("room");
-    const player = getParam("player");
+    let currentRoomCode = null;
+    let currentPlayerName = null;
+    let isHost = false;
 
-    const domandaElem = document.getElementById("domanda");
-    const inputElem = document.getElementById("rispostaInput");
-    const buttonElem = document.getElementById("submitRisposta");
-    const container = document.getElementById("contenutoGioco");
-    const timerElem = document.getElementById("timer");
-    const votazioneElem = document.getElementById("votazione");
-    const roundTotali = 7;
+    function generaCodice() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ123456789';
+      let code = '';
+      for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
 
-    let currentRound = 1;
-    let fase = "attesa"; // "risposte", "votazione"
-    let intervalloTimer;
-    let tempo = 45;
+    // 1) Crea Partita (solo host - non si usa direttamente da lobby)
+    window.creaPartita = async function () {
+      const nome = prompt("Inserisci il tuo nome da host:");
+      if (!nome) return;
 
-    function startTimer(callback) {
-      tempo = 45;
-      timerElem.innerText = `Tempo rimasto: ${tempo}`;
-      intervalloTimer = setInterval(() => {
-        tempo--;
-        timerElem.innerText = `Tempo rimasto: ${tempo}`;
-        if (tempo <= 0) {
-          clearInterval(intervalloTimer);
-          callback();
+      const codice = generaCodice();
+      currentRoomCode = codice;
+      currentPlayerName = nome;
+      isHost = true;
+
+      // Scrivo la stanza in Firebase (stato: attesa)
+      await update(ref(db, `stanze/${codice}`), {
+        host: nome,
+        stato: "attesa",
+        giocatori: {
+          [nome]: { punti: 0 }
         }
-      }, 1000);
+      });
+
+      mostraLobby();
     }
 
-    function mostraDomanda(domanda) {
-      domandaElem.innerText = domanda;
-      inputElem.style.display = "inline";
-      buttonElem.style.display = "inline";
-      inputElem.disabled = false;
-      buttonElem.disabled = false;
-      votazioneElem.innerHTML = "";
+    // 2) Unisciti a Partita (partecipante)
+    window.unisciti = async function () {
+      const codice = prompt("Inserisci il codice stanza:");
+      const nome = prompt("Il tuo nome:");
+      if (!codice || !nome) return;
+
+      const roomRef = ref(db, `stanze/${codice}`);
+      const snapshot = await get(roomRef);
+      if (!snapshot.exists()) {
+        alert("Stanza non trovata");
+        return;
+      }
+
+      currentRoomCode = codice;
+      currentPlayerName = nome;
+      isHost = false;
+
+      // Aggiungo questo giocatore ai giocatori esistenti
+      await update(ref(db, `stanze/${codice}/giocatori`), {
+        [nome]: { punti: 0 }
+      });
+
+      mostraLobby();
     }
 
-    function mostraRispostePerVotare(risposte, corretta) {
-      votazioneElem.innerHTML = "<h3>Vota la risposta corretta:</h3>";
-      const mescolate = [...risposte.map(r => ({ testo: r.risposta, autore: r.autore })), { testo: corretta, autore: "CORRETTA" }].sort(() => Math.random() - 0.5);
+    // 3) Mostra la Lobby (host + partecipanti)
+    function mostraLobby() {
+      document.getElementById("iniziale").style.display = "none";
+      document.getElementById("lobby").style.display = "block";
+      document.getElementById("codiceStanza").innerText = currentRoomCode;
+      document.getElementById("startBtn").style.display = isHost ? "inline-block" : "none";
 
-      mescolate.forEach(({ testo, autore }) => {
-        const btn = document.createElement("button");
-        btn.innerText = testo;
-        btn.onclick = () => inviaVoto(testo);
-        votazioneElem.appendChild(btn);
+      aggiornaGiocatori(currentRoomCode);
+    }
+
+    // 4) Aggiorna lista giocatori e ascolta stato stanza
+    function aggiornaGiocatori(codice) {
+      const playersList = document.getElementById("playersList");
+      const playersRef = ref(db, `stanze/${codice}/giocatori`);
+
+      // a) Aggiorna lista nomi
+      onValue(playersRef, (snapshot) => {
+        const players = snapshot.val() || {};
+        playersList.innerHTML = "";
+        Object.keys(players).forEach(nome => {
+          const li = document.createElement("li");
+          li.textContent = nome + (nome === currentPlayerName ? " (tu)" : "");
+          playersList.appendChild(li);
+        });
+      });
+
+      // b) Ascolta stato stanza e redirect a gioco.html
+      const roomRef = ref(db, `stanze/${codice}`);
+      onValue(roomRef, (snapshot) => {
+        const roomData = snapshot.val();
+        if (roomData && roomData.stato === "inCorso") {
+          window.location.href =
+            `gioco.html?room=${codice}&player=${encodeURIComponent(currentPlayerName)}`;
+        }
       });
     }
 
-    function inviaRisposta() {
-      const risposta = inputElem.value.trim();
-      if (!risposta) return;
-      set(ref(db, `stanze/${room}/rounds/${currentRound}/risposte/${player}`), risposta);
-      inputElem.disabled = true;
-      buttonElem.disabled = true;
+    // 5) L’host avvia la partita (chiamato da firebase.html con domanda/risposta corretta)
+    window.iniziaPartita = async function () {
+      if (!currentRoomCode) return;
+      // Questo non verrà più usato direttamente da lobby
     }
-
-    function inviaVoto(rispostaScelta) {
-      set(ref(db, `stanze/${room}/rounds/${currentRound}/voti/${player}`), rispostaScelta);
-      votazioneElem.innerHTML += "<p>Voto inviato!</p>";
-    }
-
-    function faseRisposta(domanda) {
-      fase = "risposte";
-      mostraDomanda(domanda);
-      startTimer(() => faseVotazione());
-    }
-
-    function faseVotazione() {
-      fase = "votazione";
-      inputElem.style.display = "none";
-      buttonElem.style.display = "none";
-
-      onValue(ref(db, `stanze/${room}/rounds/${currentRound}/risposte`), (snapshot) => {
-        const risposteObj = snapshot.val() || {};
-        const listaRisposte = Object.entries(risposteObj).map(([autore, risposta]) => ({ autore, risposta }));
-
-        onValue(ref(db, `stanze/${room}/rounds/${currentRound}/corretta`), (snap) => {
-          const corretta = snap.val();
-          mostraRispostePerVotare(listaRisposte, corretta);
-          startTimer(() => fineRound());
-        }, { onlyOnce: true });
-      }, { onlyOnce: true });
-    }
-
-    function fineRound() {
-      container.innerHTML = `<h2>Round ${currentRound} finito!</h2><p>Classifica in arrivo...</p>`;
-      // Puoi aggiungere qui la logica per calcolare la classifica
-
-      if (currentRound < roundTotali) {
-        const nextBtn = document.createElement("button");
-        nextBtn.innerText = "Domanda successiva";
-        nextBtn.onclick = () => {
-          currentRound++;
-          loadRound();
-        };
-        container.appendChild(nextBtn);
-      } else {
-        container.innerHTML += "<h2>Fine del gioco! Classifica finale in arrivo.</h2>";
-      }
-    }
-
-    function loadRound() {
-      container.innerHTML = "";
-      votazioneElem.innerHTML = "";
-      const roundRef = ref(db, `stanze/${room}/rounds/${currentRound}`);
-      onValue(roundRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.domanda) {
-          faseRisposta(data.domanda);
-        } else {
-          container.innerHTML = `<p>Attesa che l'host imposti la domanda del round ${currentRound}...</p>`;
-        }
-      }, { onlyOnce: true });
-    }
-
-    window.onload = () => {
-      document.getElementById("titoloGioco").innerText = `Stanza: ${room}`;
-      buttonElem.onclick = inviaRisposta;
-      loadRound();
-    };
   </script>
 </head>
 <body>
-  <h1 id="titoloGioco">Gioco Finto</h1>
-  <p id="domanda"></p>
-  <input type="text" id="rispostaInput" placeholder="Scrivi la tua risposta finta">
-  <button id="submitRisposta">Invia Risposta</button>
-  <p id="timer"></p>
-  <div id="contenutoGioco"></div>
-  <div id="votazione"></div>
+  <div id="container">
+    <h1>Gioco Finto - Lobby</h1>
+
+    <!-- Prima schermata: "Crea" o "Entra" -->
+    <div id="iniziale">
+      <button onclick="creaPartita()">Crea Partita</button>
+      <button onclick="unisciti()">Unisciti a Partita</button>
+    </div>
+
+    <!-- Lobby vera e propria (nascosta finché non si entra) -->
+    <div id="lobby" style="display:none;">
+      <h2>Lobby - Codice Stanza: <span id="codiceStanza"></span></h2>
+      <ul id="playersList"></ul>
+      <button id="startBtn" style="display:none;">
+        Inizia Partita
+      </button>
+    </div>
+  </div>
 </body>
 </html>
