@@ -1,144 +1,11 @@
 <!DOCTYPE html>
-<html lang="it">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gioco Finto - Partita</title>
-  <style>
-    /* Stili base per mobile/desktop */
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #121212;
-      color: #eee;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      min-height: 100vh;
-      box-sizing: border-box;
-      padding: 10px;
-    }
-    #container {
-      width: 100%;
-      max-width: 500px;
-      background: #1f1f1f;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.7);
-    }
-    h1, h2 {
-      margin: 0 0 15px 0;
-      color: #ffa726;
-      text-shadow: 0 0 8px #ff9800;
-      text-align: center;
-    }
-    p {
-      margin: 0 0 15px 0;
-      font-size: 1rem;
-    }
-    #faseDescrizione {
-      margin-bottom: 20px;
-      font-size: 1.1rem;
-      text-align: center;
-    }
-    #domanda {
-      font-size: 1.2rem;
-      margin-bottom: 20px;
-      min-height: 50px;
-      text-align: center;
-    }
-    #timer {
-      font-size: 1.1rem;
-      font-weight: bold;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    #areaRisposta, #areaVotazione, #areaClassifica {
-      display: none;
-    }
-
-    /* Input & buttons */
-    #rispostaInput {
-      width: 100%;
-      padding: 12px;
-      font-size: 1rem;
-      border-radius: 6px;
-      border: none;
-      margin-bottom: 10px;
-      box-sizing: border-box;
-    }
-    button {
-      background: #ff9800;
-      border: none;
-      padding: 12px 20px;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: 600;
-      color: #121212;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-      box-shadow: 0 4px 8px rgba(255, 152, 0, 0.5);
-      margin: 5px 0;
-      width: 100%;
-      max-width: 100%;
-    }
-    button:hover {
-      background: #ffa726;
-      box-shadow: 0 6px 14px rgba(255, 152, 0, 0.8);
-    }
-    #nextRoundBtn {
-      display: none;
-      background: #4caf50;
-      margin-top: 15px;
-    }
-
-    /* Lista risposte/voti */
-    .lista-button {
-      background: #333;
-      color: #eee;
-      margin: 5px 0;
-      text-align: left;
-      padding: 10px;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    .lista-button:hover {
-      background: #444;
-    }
-
-    /* Classifica */
-    #classificaLista {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      font-size: 1rem;
-    }
-    #classificaLista li {
-      padding: 8px 12px;
-      background: #292929;
-      margin-bottom: 6px;
-      border-radius: 6px;
-    }
-    #classificaLista li.tu {
-      font-weight: bold;
-      color: #ffcc80;
-    }
-  </style>
-
+  <title>Gioco Finto - Gioco</title>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import {
-      getDatabase,
-      ref,
-      onValue,
-      set,
-      update,
-      get,
-      remove
-    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, onValue, set, update, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-    // --- CONFIGURAZIONE FIREBASE ---
     const firebaseConfig = {
       apiKey: "AIzaSyDtI60BwTDVChvoeYAO-vqkhUItMPgELI0",
       authDomain: "finto-e2fb4.firebaseapp.com",
@@ -148,352 +15,225 @@
       appId: "1:149175040013:web:42e35c65e98761164e7d44",
       databaseURL: "https://finto-e2fb4-default-rtdb.firebaseio.com/"
     };
-    const app = initializeApp(firebaseConfig);
-    const db  = getDatabase(app);
 
-    // --- RECUPERO PARAMETRI DA URL ---
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Recupera parametri URL
     function getParam(param) {
-      const params = new URLSearchParams(window.location.search);
-      return params.get(param);
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(param);
     }
-    const currentRoomCode   = getParam("room");
+
+    const currentRoomCode = getParam("room");
     const currentPlayerName = getParam("player");
 
-    // --- DOM ELEMENTS ---
-    let titoloEl        = null;
-    let faseDescrEl     = null;
-    let domandaEl       = null;
-    let timerEl         = null;
-    let areaRispostaEl  = null;
-    let inputRispostaEl = null;
-    let btnSubmitRisposta = null;
-    let areaVotazioneEl   = null;
-    let votiListEl        = null;
-    let areaClassificaEl  = null;
-    let classificaListEl  = null;
-    let nextRoundBtn      = null;
-
-    // --- VARIABILI DI STATO CLIENT ---
-    let isHost = false;                   // se l’utente è host
-    let currentRound = 0;                 // indice round attuale (0..6)
-    const TOTAL_ROUNDS = 7;
-    let faseCorrente = "caricamento";     // "risposta", "votazione", "classifica"
+    // Stato interno
+    let fase = null; // "risposte", "votazioni", "classifica"
     let timerInterval = null;
-    let tempoRimasto = 0;
-    let rispostaInviata = false;         // segna se l’utente ha già inviato fake
-    let votoInviato      = false;         // segna se ha già votato in questa votazione
+    let timerCount = 0;
+    const TIMER_RISPOSTE = 45; // secondi
+    const TIMER_VOTAZIONI = 45; // secondi
+    let rispostaInviata = false;
+    let votato = false;
 
-    // --- DOMANDE E RISPOSTE CORRETTE (hardcoded per ora) ---
-    const domandeSet = [
-      { domanda: "Qual è la capitale della Mongolia?", rispostaCorretta: "Ulan Bator" },
-      { domanda: "In che anno è stato lanciato il primo iPhone?", rispostaCorretta: "2007" },
-      { domanda: "Quale animale è simbolo dell'Australia?", rispostaCorretta: "Canguro" },
-      { domanda: "Quanti pianeti ci sono nel sistema solare?", rispostaCorretta: "8" },
-      { domanda: "Qual è il fiume più lungo del mondo?", rispostaCorretta: "Nilo" },
-      { domanda: "Qual è la valuta del Giappone?", rispostaCorretta: "Yen" },
-      { domanda: "Qual è il montagna più alta del mondo?", rispostaCorretta: "Everest" }
-    ];
+    // Elementi DOM
+    const titoloGiocoEl = document.getElementById("titoloGioco");
+    const domandaEl = document.getElementById("domanda");
+    const rispostaInputEl = document.getElementById("rispostaInput");
+    const submitRispostaEl = document.getElementById("submitRisposta");
+    const timerEl = document.getElementById("timer");
+    const messaggioEl = document.getElementById("messaggio");
+    const risposteContainerEl = document.getElementById("risposteContainer");
+    const classificaContainerEl = document.getElementById("classificaContainer");
+    const bottoneDomandaSuccessivaEl = document.getElementById("bottoneDomandaSuccessiva");
 
-    // --- CONFIGURAZIONE FIREBASE: struttura in DB ---
-    // stanze/{room}/round            : numero round corrente (0..6)
-    // stanze/{room}/fase             : "risposta", "votazione", "classifica"
-    // stanze/{room}/domanda          : testo della domanda corrente
-    // stanze/{room}/risposte/{round}/{player} : risposta finta
-    // stanze/{room}/voti/{round}/{playerVotante} = nomeRispostaScelta (testo)
-    // stanze/{room}/giocatori/{player}/punti  : punti totali
-
-    // --- FUNZIONE DI INIZIALIZZAZIONE ---
-    window.onload = () => {
-      // 1) Collego gli elementi del DOM
-      titoloEl         = document.getElementById("titoloGioco");
-      faseDescrEl      = document.getElementById("faseDescrizione");
-      domandaEl        = document.getElementById("domanda");
-      timerEl          = document.getElementById("timer");
-      areaRispostaEl   = document.getElementById("areaRisposta");
-      inputRispostaEl  = document.getElementById("rispostaInput");
-      btnSubmitRisposta= document.getElementById("submitRisposta");
-      areaVotazioneEl  = document.getElementById("areaVotazione");
-      votiListEl       = document.getElementById("votiList");
-      areaClassificaEl = document.getElementById("areaClassifica");
-      classificaListEl = document.getElementById("classificaList");
-      nextRoundBtn     = document.getElementById("nextRoundBtn");
-
-      titoloEl.innerText = `Stanza: ${currentRoomCode}`;
-
-      // 2) Controlla se esiste un nodo stanze/{room} 
-      get(ref(db, `stanze/${currentRoomCode}`)).then(snapshot => {
-        if (!snapshot.exists()) {
-          alert("Stanza non trovata o eliminata.");
-          window.location.href = "lobby.html";
-          return;
-        }
-        // Se esiste, capiamo se sei host
-        const data = snapshot.val();
-        isHost = (data.host === currentPlayerName);
-
-        // Se non esiste ancora round, inizializzalo a 0 e fase "risposta"
-        if (data.round === undefined) {
-          update(ref(db, `stanze/${currentRoomCode}`), {
-            round: 0,
-            fase: "risposta",
-            domanda: domandeSet[0].domanda
-          });
-        }
-
-        // 3) Ascolta in tempo reale il nodo stanze/{room}/round e stanze/{room}/fase
-        onValue(ref(db, `stanze/${currentRoomCode}`), (snap) => {
-          const stanzaData = snap.val();
-          if (!stanzaData) return;
-          currentRound = stanzaData.round;
-          faseCorrente = stanzaData.fase;
-
-          // Mostra fase attuale
-          aggiornaInterfacciaPerFase();
-        });
-      });
-    };
-
-    // --- FUNZIONE PRINCIPALE CHE AGGIORNA L'INTERFACCIA A SECONDA DELLA FASE ---
-    function aggiornaInterfacciaPerFase() {
-      // Nascondi tutte le sezioni
-      areaRispostaEl.style.display = "none";
-      areaVotazioneEl.style.display = "none";
-      areaClassificaEl.style.display = "none";
-      nextRoundBtn.style.display = "none";
-
-      // Testo descrittivo della fase
-      if (faseCorrente === "risposta") {
-        faseDescrEl.innerText = `Round ${currentRound + 1} di ${TOTAL_ROUNDS}: inserisci la tua risposta finta`;
-        mostraFaseRisposta();
-      }
-      else if (faseCorrente === "votazione") {
-        faseDescrEl.innerText = `Round ${currentRound + 1} di ${TOTAL_ROUNDS}: vota la risposta più credibile`;
-        mostraFaseVotazione();
-      }
-      else if (faseCorrente === "classifica") {
-        faseDescrEl.innerText = `Classifica dopo il Round ${currentRound + 1}`;
-        mostraFaseClassifica();
-      }
+    // Funzione per mostrare timer a schermo
+    function updateTimerDisplay() {
+      timerEl.innerText = `Tempo rimasto: ${timerCount} secondi`;
     }
 
-    // --- FASE RISPOSTA (45s per inviare fake) ---
-    function mostraFaseRisposta() {
-      // Imposta la domanda dal set di domande
-      const testoDomanda = domandeSet[currentRound].domanda;
-      domandaEl.innerText = testoDomanda;
-      // Mostra area di inserimento
-      areaRispostaEl.style.display = "block";
-      inputRispostaEl.disabled = false;
-      btnSubmitRisposta.disabled = false;
-      inputRispostaEl.value = "";
-      rispostaInviata = false;
-
-      // Avvia timer 45s
-      avviaTimer(45, () => {
-        // timeout scaduto: passa a votazione
-        if (!rispostaInviata) {
-          // in ogni caso disabilito l’input
-          inputRispostaEl.disabled = true;
-          btnSubmitRisposta.disabled = true;
-        }
-        if (isHost) {
-          // L’host, quando scade, salta a votazione scrivendo su Firebase
-          update(ref(db, `stanze/${currentRoomCode}`), {
-            fase: "votazione"
-          });
-        }
-      });
+    // Funzione per fermare timer
+    function stopTimer() {
+      if(timerInterval) clearInterval(timerInterval);
+      timerEl.innerText = "";
     }
 
-    // Invio risposta finta
-    window.inviaRispostaFinta = () => {
-      const testo = inputRispostaEl.value.trim();
-      if (!testo) {
-        alert("Scrivi qualcosa!");
-        return;
-      }
-      // Memorizza in Firebase sotto stanze/{room}/risposte/{round}/{player}
-      set(ref(db, `stanze/${currentRoomCode}/risposte/${currentRound}/${currentPlayerName}`), testo)
-        .then(() => {
-          rispostaInviata = true;
-          inputRispostaEl.disabled = true;
-          btnSubmitRisposta.disabled = true;
-        })
-        .catch(err => alert("Errore invio risposta: " + err.message));
-    };
-
-    // --- FASE VOTAZIONE (45s per votare) ---
-    function mostraFaseVotazione() {
-      domandaEl.innerText = "Caricamento risposte da votare...";
-      areaVotazioneEl.style.display = "block";
-      votiListEl.innerHTML = "";
-      votoInviato = false;
-
-      // Recupera tutte le risposte del round e la risposta corretta
-      get(ref(db, `stanze/${currentRoomCode}/risposte/${currentRound}`)).then(snap => {
-        const fakeObj = snap.val() || {};
-        // Converte in array di {player, testo}
-        let arrayRisposte = Object.entries(fakeObj).map(([p, t]) => ({ player: p, testo: t }));
-        // Aggiunge la risposta vera con player="__VERA__"
-        arrayRisposte.push({ player: "__VERA__", testo: domandeSet[currentRound].rispostaCorretta });
-        // Mescola
-        for (let i = arrayRisposte.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [arrayRisposte[i], arrayRisposte[j]] = [arrayRisposte[j], arrayRisposte[i]];
-        }
-        // Mostra bottoni per ciascuna risposta
-        votiListEl.innerHTML = "";
-        arrayRisposte.forEach(item => {
-          const btn = document.createElement("button");
-          btn.className = "lista-button";
-          btn.innerText = item.testo;
-          btn.onclick = () => inviaVoto(item);
-          votiListEl.appendChild(btn);
-        });
-
-        // Imposta timer 45s
-        avviaTimer(45, () => {
-          if (isHost) {
-            // L’host, quando scade, passa in classifica
-            update(ref(db, `stanze/${currentRoomCode}`), {
-              fase: "classifica"
-            });
-          }
-        });
-      });
-    }
-
-    // Invio voto
-    function inviaVoto(itemScelto) {
-      if (votoInviato) return;
-      votoInviato = true;
-      // Salva su Firebase: stanze/{room}/voti/{round}/{playerVotante} = testoScelto
-      set(ref(db, `stanze/${currentRoomCode}/voti/${currentRound}/${currentPlayerName}`), itemScelto)
-        .catch(err => alert("Errore invio voto: " + err.message));
-    }
-
-    // --- FASE CLASSIFICA ---
-    function mostraFaseClassifica() {
-      // Mostra solo la classifica e il bottone next
-      areaClassificaEl.style.display = "block";
-      classificaListEl.innerHTML = "";
-
-      // Calcola i punti aggiornati: bisogna leggere voti e risposte finta
-      get(ref(db, `stanze/${currentRoomCode}/giocatori`)).then(snapGioc => {
-        let classificaObj = {};
-        const giocatoriObj = snapGioc.val() || {};
-        // Copia punti esistenti (per tenerli)
-        Object.entries(giocatoriObj).forEach(([nome, obj]) => {
-          classificaObj[nome] = obj.punti || 0;
-        });
-
-        // Leggi voti di questo round
-        get(ref(db, `stanze/${currentRoomCode}/voti/${currentRound}`)).then(snapVoti => {
-          const votiObj = snapVoti.val() || {};
-
-          // Per ogni votante
-          Object.entries(votiObj).forEach(([votante, votoScelto]) => {
-            // Se ha votato la propria risposta finta -> -1 punto
-            if (votoScelto.player === votante) {
-              classificaObj[votante] = (classificaObj[votante] || 0) - 1;
-            }
-            // Se ha votato la risposta vera -> +2 punti
-            else if (votoScelto.player === "__VERA__") {
-              classificaObj[votante] = (classificaObj[votante] || 0) + 2;
-            }
-            // Altrimenti (ha votato la finta di un altro) -> +3 al creatore di quella finta
-            else {
-              const autoreFinta = votoScelto.player;
-              classificaObj[autoreFinta] = (classificaObj[autoreFinta] || 0) + 3;
-            }
-          });
-
-          // Salva i nuovi punteggi su Firebase
-          Object.entries(classificaObj).forEach(([nome, punti]) => {
-            update(ref(db, `stanze/${currentRoomCode}/giocatori/${nome}`), { punti });
-          });
-
-          // Ora mostra la classifica ordinata
-          const ord = Object.entries(classificaObj)
-            .sort((a,b) => b[1] - a[1]); // decrescente
-          ord.forEach(([nome, punti]) => {
-            const li = document.createElement("li");
-            li.textContent = `${nome}: ${punti} punti`;
-            if (nome === currentPlayerName) li.classList.add("tu");
-            classificaListEl.appendChild(li);
-          });
-
-          // Se l’host, mostra il pulsante “Domanda successiva”
-          if (isHost) {
-            if (currentRound < TOTAL_ROUNDS - 1) {
-              nextRoundBtn.style.display = "block";
-            } else {
-              nextRoundBtn.innerText = "Partita terminata";
-              nextRoundBtn.disabled = true;
-              nextRoundBtn.style.display = "block";
-            }
-          }
-        });
-      });
-    }
-
-    // L’host fa partire il round successivo
-    nextRoundBtn.onclick = () => {
-      if (!isHost) return;
-      // Cancella risposte e voti di questo round (opzionale, ma pulisce DB)
-      remove(ref(db, `stanze/${currentRoomCode}/risposte/${currentRound}`));
-      remove(ref(db, `stanze/${currentRoomCode}/voti/${currentRound}`));
-      // Incrementa round e imposta fase a “risposta” e nuova domanda
-      const nuovoRound = currentRound + 1;
-      update(ref(db, `stanze/${currentRoomCode}`), {
-        round: nuovoRound,
-        fase: "risposta",
-        domanda: domandeSet[nuovoRound].domanda
-      });
-      // Il listener onValue aggiornerà automaticamente l’interfaccia
-    };
-
-    // --- FUNZIONE UTILE: timer conto alla rovescia ---
-    function avviaTimer(secondi, callbackScadenza) {
-      if (timerInterval) clearInterval(timerInterval);
-      let t = secondi;
-      timerEl.innerText = `Tempo rimasto: ${t}s`;
+    // Funzione per iniziare timer con durata specifica e callback al termine
+    function startTimer(seconds, onFinish) {
+      timerCount = seconds;
+      updateTimerDisplay();
       timerInterval = setInterval(() => {
-        t--;
-        timerEl.innerText = `Tempo rimasto: ${t}s`;
-        if (t <= 0) {
-          clearInterval(timerInterval);
-          callbackScadenza();
+        timerCount--;
+        updateTimerDisplay();
+        if(timerCount <= 0) {
+          stopTimer();
+          onFinish();
         }
       }, 1000);
     }
 
+    // Funzione che aggiorna l’interfaccia in base alla fase
+    function aggiornaInterfaccia(stato) {
+      fase = stato.fase;
+      titoloGiocoEl.innerText = `Stanza: ${currentRoomCode} - Round ${stato.round || "?"}`;
+
+      if (fase === "risposte") {
+        domandaEl.innerText = stato.domanda || "Aspettando domanda...";
+        messaggioEl.innerText = "Inserisci la tua risposta finta!";
+        rispostaInputEl.style.display = "inline-block";
+        submitRispostaEl.style.display = "inline-block";
+        rispostaInputEl.disabled = false;
+        submitRispostaEl.disabled = rispostaInviata;
+        risposteContainerEl.style.display = "none";
+        classificaContainerEl.style.display = "none";
+        bottoneDomandaSuccessivaEl.style.display = "none";
+        votato = false;
+
+        // Avvia timer 45s per risposte
+        startTimer(TIMER_RISPOSTE, () => {
+          // Al termine 45s, spostarsi in votazioni automaticamente se host ha aggiornato la fase in firebase
+          // Qui puoi gestire qualcosa per sincronizzare, ma per ora solo alert
+          messaggioEl.innerText = "Tempo per rispondere scaduto!";
+          rispostaInputEl.disabled = true;
+          submitRispostaEl.disabled = true;
+        });
+      }
+
+      else if (fase === "votazioni") {
+        domandaEl.innerText = stato.domanda || "Aspettando domanda...";
+        messaggioEl.innerText = "Vota la risposta che pensi sia corretta!";
+        rispostaInputEl.style.display = "none";
+        submitRispostaEl.style.display = "none";
+        risposteContainerEl.style.display = "block";
+        classificaContainerEl.style.display = "none";
+        bottoneDomandaSuccessivaEl.style.display = "none";
+        votato = false;
+
+        // Mostra tutte le risposte (finte + corretta)
+        mostraRisposte(stato.risposte, stato.rispostaCorretta);
+
+        startTimer(TIMER_VOTAZIONI, () => {
+          messaggioEl.innerText = "Tempo per votare scaduto!";
+          // Se non ha votato, non fare nulla, oppure puoi disabilitare votazioni
+          // Mostra bottone domanda successiva solo se host ha cambiato fase a classifica (sincronizzato)
+        });
+      }
+
+      else if (fase === "classifica") {
+        rispostaInputEl.style.display = "none";
+        submitRispostaEl.style.display = "none";
+        risposteContainerEl.style.display = "none";
+        classificaContainerEl.style.display = "block";
+        bottoneDomandaSuccessivaEl.style.display = "inline-block";
+
+        mostraClassifica(stato.classifica);
+        messaggioEl.innerText = "Classifica aggiornata";
+
+        stopTimer();
+      }
+    }
+
+    // Funzione per mostrare risposte e aggiungere evento click per votazione
+    function mostraRisposte(risposteObj, rispostaCorretta) {
+      risposteContainerEl.innerHTML = ""; // pulisci
+      // Aggiungi la risposta corretta prima (con classe speciale)
+      const correttaDiv = document.createElement("div");
+      correttaDiv.innerText = `Risposta corretta: ${rispostaCorretta}`;
+      correttaDiv.className = "risposta corretta";
+      correttaDiv.onclick = () => votaRisposta("CORRETTA");
+      risposteContainerEl.appendChild(correttaDiv);
+
+      // Aggiungi risposte finte dei giocatori
+      for (const [player, risposta] of Object.entries(risposteObj || {})) {
+        const div = document.createElement("div");
+        div.innerText = `${player}: ${risposta}`;
+        div.className = "risposta finta";
+        div.onclick = () => votaRisposta(player);
+        risposteContainerEl.appendChild(div);
+      }
+    }
+
+    // Funzione per votare risposta (solo una volta)
+    function votaRisposta(playerRisposta) {
+      if (votato) {
+        alert("Hai già votato!");
+        return;
+      }
+      votato = true;
+      messaggioEl.innerText = `Hai votato: ${playerRisposta}`;
+
+      // Scrivi il voto su firebase sotto stanze/{room}/voti/{playerCurrent} = playerRisposta
+      set(ref(db, `stanze/${currentRoomCode}/voti/${currentPlayerName}`), playerRisposta)
+      .catch(err => alert("Errore voto: " + err.message));
+    }
+
+    // Funzione per inviare risposta finta
+    window.inviaRispostaFinta = () => {
+      const risposta = rispostaInputEl.value.trim();
+      if (!risposta) {
+        alert("Inserisci una risposta!");
+        return;
+      }
+      rispostaInviata = true;
+      rispostaInputEl.disabled = true;
+      submitRispostaEl.disabled = true;
+
+      // Salva risposta su firebase sotto stanze/{room}/risposte/{player}
+      set(ref(db, `stanze/${currentRoomCode}/risposte/${currentPlayerName}`), risposta)
+      .catch(err => alert("Errore invio risposta: " + err.message));
+    };
+
+    // Funzione per mostrare classifica (ordine decrescente punti)
+    function mostraClassifica(classificaObj) {
+      classificaContainerEl.innerHTML = "<h3>Classifica</h3>";
+      if(!classificaObj) {
+        classificaContainerEl.innerHTML += "<p>Classifica non disponibile.</p>";
+        return;
+      }
+      // Ordina per punti decrescente
+      const sorted = Object.entries(classificaObj).sort((a,b) => b[1] - a[1]);
+      sorted.forEach(([player, punti]) => {
+        const p = document.createElement("p");
+        p.innerText = `${player}: ${punti} punti`;
+        classificaContainerEl.appendChild(p);
+      });
+    }
+
+    // Bottone domanda successiva click
+    window.domandaSuccessiva = () => {
+      // Qui l’host deve aggiornare la domanda, azzerare risposte e voti e cambiare fase a “risposte”
+      alert("Host: aggiorna manualmente la domanda e la fase in Firebase per passare al round successivo");
+      bottoneDomandaSuccessivaEl.style.display = "none";
+    };
+
+    // Ascolto Firebase stanza per aggiornamenti (domanda, fase, risposte, voti, classifica)
+    const stanzaRef = ref(db, `stanze/${currentRoomCode}`);
+    onValue(stanzaRef, (snapshot) => {
+      const data = snapshot.val();
+      if(!data) return;
+
+      aggiornaInterfaccia(data);
+    });
+
   </script>
+  <style>
+    .risposta { padding: 5px; margin: 4px; border: 1px solid #ccc; cursor: pointer; }
+    .risposta.corretta { background-color: #d4edda; font-weight: bold; }
+    .risposta.finta:hover { background-color: #f8d7da; }
+  </style>
 </head>
 <body>
-  <div id="container">
-    <h1 id="titoloGioco">Gioco Finto</h1>
-    <p id="faseDescrizione">Caricamento partita…</p>
-    <p id="domanda"></p>
-    <p id="timer"></p>
+  <h1 id="titoloGioco">Gioco Finto</h1>
+  <p id="domanda"></p>
+  <p id="messaggio"></p>
+  <p id="timer"></p>
 
-    <!-- 1) AREA INSERIMENTO RISPOSTA FINTA -->
-    <div id="areaRisposta">
-      <input type="text" id="rispostaInput" placeholder="Scrivi la tua risposta finta" />
-      <button id="submitRisposta" onclick="inviaRispostaFinta()">Invia Risposta</button>
-    </div>
+  <input type="text" id="rispostaInput" placeholder="Scrivi la tua risposta finta">
+  <button id="submitRisposta" onclick="inviaRispostaFinta()">Invia Risposta</button>
 
-    <!-- 2) AREA VOTAZIONE -->
-    <div id="areaVotazione">
-      <div id="votiList"></div>
-    </div>
-
-    <!-- 3) AREA CLASSIFICA E NEXT ROUND -->
-    <div id="areaClassifica">
-      <h2>Classifica</h2>
-      <ul id="classificaList"></ul>
-      <button id="nextRoundBtn">Domanda Successiva</button>
-    </div>
-  </div>
+  <div id="risposteContainer" style="display:none;"></div>
+  <div id="classificaContainer" style="display:none;"></div>
+  <button id="bottoneDomandaSuccessiva" onclick="domandaSuccessiva()" style="display:none;">Domanda Successiva</button>
 </body>
 </html>
