@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gioco Finto - Gioco</title>
+  <style>
+    /* Stile base per la pagina di gioco */
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #121212;
+      color: #eee;
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    #container {
+      max-width: 500px;
+      width: 100%;
+      background: #1f1f1f;
+      border-radius: 12px;
+      padding: 30px 25px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+      text-align: center;
+    }
+    h1 {
+      margin-bottom: 25px;
+      color: #ffa726;
+      text-shadow: 0 0 8px #ff9800;
+    }
+    #domanda {
+      font-size: 1.4rem;
+      margin-bottom: 20px;
+      min-height: 60px;
+    }
+    #rispostaInput {
+      width: 100%;
+      padding: 12px;
+      font-size: 1.1rem;
+      border-radius: 6px;
+      border: none;
+      margin-bottom: 15px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #ff9800;
+      border: none;
+      padding: 14px 20px;
+      border-radius: 25px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #121212;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      box-shadow: 0 4px 8px rgba(255, 152, 0, 0.5);
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    button:hover {
+      background: #ffa726;
+      box-shadow: 0 6px 14px rgba(255, 152, 0, 0.8);
+    }
+  </style>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDtI60BwTDVChvoeYAO-vqkhUItMPgELI0",
+      authDomain: "finto-e2fb4.firebaseapp.com",
+      projectId: "finto-e2fb4",
+      storageBucket: "finto-e2fb4.appspot.com",
+      messagingSenderId: "149175040013",
+      appId: "1:149175040013:web:42e35c65e98761164e7d44",
+      databaseURL: "https://finto-e2fb4-default-rtdb.firebaseio.com/"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Legge parametri URL room e player
+    function getParam(param) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(param);
+    }
+
+    const currentRoomCode   = getParam("room");
+    const currentPlayerName = getParam("player");
+
+    window.onload = () => {
+      // Mostra il titolo con codice stanza
+      document.getElementById("titoloGioco").innerText = `Stanza: ${currentRoomCode}`;
+
+      // Ascolta la chiave 'domanda' nella stanza
+      const domandaRef = ref(db, `stanze/${currentRoomCode}/domanda`);
+      onValue(domandaRef, (snapshot) => {
+        const domanda = snapshot.val();
+        document.getElementById("domanda").innerText =
+          domanda || "Aspettando la domanda...";
+      });
+    };
+
+    // Invio della risposta finta
+    window.inviaRispostaFinta = () => {
+      const risposta = document.getElementById("rispostaInput").value.trim();
+      if (!risposta) {
+        alert("Inserisci una risposta!");
+        return;
+      }
+      set(ref(db, `stanze/${currentRoomCode}/risposte/${currentPlayerName}`), risposta)
+        .then(() => {
+          alert("Risposta inviata!");
+          document.getElementById("rispostaInput").disabled = true;
+          document.getElementById("submitRisposta").disabled = true;
+        })
+        .catch(err => {
+          alert("Errore invio risposta: " + err.message);
+        });
+    };
+  </script>
+</head>
+<body>
+  <div id="container">
+    <h1 id="titoloGioco">Gioco Finto</h1>
+    <p id="domanda">Caricamento domanda...</p>
+
+    <input type="text" id="rispostaInput" placeholder="Scrivi la tua risposta finta" />
+    <button id="submitRisposta" onclick="inviaRispostaFinta()">Invia Risposta</button>
+  </div>
+</body>
+</html>

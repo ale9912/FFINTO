@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gioco Finto - Lobby</title>
+  <style>
+    /* Stile base per la lobby */
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #121212;
+      color: #eee;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #container {
+      background: #1f1f1f;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+      width: 320px;
+      max-width: 100%;
+      text-align: center;
+    }
+    h1 {
+      margin-bottom: 20px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #ffa726;
+      text-shadow: 0 0 8px #ff9800;
+      font-size: 1.8rem;
+    }
+    button {
+      background: #ff9800;
+      border: none;
+      padding: 14px 24px;
+      border-radius: 30px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #121212;
+      cursor: pointer;
+      margin: 12px 6px;
+      transition: background-color 0.3s ease;
+      box-shadow: 0 4px 8px rgba(255, 152, 0, 0.5);
+      width: 140px;
+      max-width: 90vw;
+      word-break: break-word;
+    }
+    button:hover {
+      background: #ffa726;
+      box-shadow: 0 6px 14px rgba(255, 152, 0, 0.8);
+    }
+    #lobby {
+      margin-top: 20px;
+      background: #292929;
+      padding: 15px 20px;
+      border-radius: 12px;
+      box-shadow: inset 0 0 12px rgba(255, 152, 0, 0.3);
+    }
+    #codiceStanza {
+      font-weight: 700;
+      font-size: 1.6rem;
+      color: #ffb74d;
+      letter-spacing: 3px;
+    }
+    ul#playersList {
+      list-style: none;
+      padding-left: 0;
+      margin: 12px 0 20px 0;
+      max-height: 150px;
+      overflow-y: auto;
+      text-align: left;
+      font-size: 1.1rem;
+    }
+    ul#playersList li {
+      padding: 10px 14px;
+      background: #3a3a3a;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      font-weight: 600;
+      color: #fff3e0;
+    }
+    @media (max-width: 480px) {
+      #container {
+        padding: 25px 20px;
+        width: 90vw;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+      button {
+        width: 100%;
+        font-size: 1.2rem;
+        padding: 16px 0;
+        margin: 10px 0;
+      }
+      #codiceStanza {
+        font-size: 1.8rem;
+        letter-spacing: 4px;
+      }
+      ul#playersList {
+        font-size: 1.2rem;
+        max-height: 200px;
+      }
+      ul#playersList li {
+        padding: 12px 16px;
+        margin-bottom: 12px;
+      }
+    }
+  </style>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, update, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDtI60BwTDVChvoeYAO-vqkhUItMPgELI0",
+      authDomain: "finto-e2fb4.firebaseapp.com",
+      projectId: "finto-e2fb4",
+      storageBucket: "finto-e2fb4.appspot.com",
+      messagingSenderId: "149175040013",
+      appId: "1:149175040013:web:42e35c65e98761164e7d44",
+      databaseURL: "https://finto-e2fb4-default-rtdb.firebaseio.com/"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let currentRoomCode = null;
+    let currentPlayerName = null;
+    let isHost = false;
+
+    function generaCodice() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ123456789';
+      let code = '';
+      for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    // 1) Crea Partita
+    window.creaPartita = async function () {
+      const nome = prompt("Inserisci il tuo nome:");
+      if (!nome) return;
+
+      const codice = generaCodice();
+      currentRoomCode = codice;
+      currentPlayerName = nome;
+      isHost = true;
+
+      // Scrivo la stanza in Firebase (stato: attesa)
+      await set(ref(db, `stanze/${codice}`), {
+        host: nome,
+        stato: "attesa",
+        giocatori: {
+          [nome]: { punti: 0 }
+        }
+      });
+
+      mostraLobby();
+    }
+
+    // 2) Unisciti a Partita
+    window.unisciti = async function () {
+      const codice = prompt("Codice stanza:");
+      const nome = prompt("Il tuo nome:");
+      if (!codice || !nome) return;
+
+      const roomRef = ref(db, `stanze/${codice}`);
+      const snapshot = await get(roomRef);
+      if (!snapshot.exists()) {
+        alert("Stanza non trovata");
+        return;
+      }
+
+      currentRoomCode = codice;
+      currentPlayerName = nome;
+      isHost = false;
+
+      // Aggiungo questo giocatore ai giocatori esistenti
+      await update(ref(db, `stanze/${codice}/giocatori`), {
+        [nome]: { punti: 0 }
+      });
+
+      mostraLobby();
+    }
+
+    // 3) Mostra la Lobby (host + partecipanti)
+    function mostraLobby() {
+      document.getElementById("iniziale").style.display = "none";
+      document.getElementById("lobby").style.display = "block";
+      document.getElementById("codiceStanza").innerText = currentRoomCode;
+      document.getElementById("startBtn").style.display = isHost ? "inline-block" : "none";
+
+      aggiornaGiocatori(currentRoomCode);
+    }
+
+    // 4) Aggiorna lista giocatori e ascolta stato stanza
+    function aggiornaGiocatori(codice) {
+      const playersList = document.getElementById("playersList");
+      const playersRef = ref(db, `stanze/${codice}/giocatori`);
+
+      // a) Aggiorna lista nomi
+      onValue(playersRef, (snapshot) => {
+        const players = snapshot.val() || {};
+        playersList.innerHTML = "";
+        Object.keys(players).forEach(nome => {
+          const li = document.createElement("li");
+          li.textContent = nome + (nome === currentPlayerName ? " (tu)" : "");
+          playersList.appendChild(li);
+        });
+      });
+
+      // b) Ascolta stato stanza e redirect a gioco.html
+      const roomRef = ref(db, `stanze/${codice}`);
+      onValue(roomRef, (snapshot) => {
+        const roomData = snapshot.val();
+        if (roomData && roomData.stato === "inCorso") {
+          // Redirect per TUTTI i giocatori
+          window.location.href = 
+            `gioco.html?room=${codice}&player=${encodeURIComponent(currentPlayerName)}`;
+        }
+      });
+    }
+
+    // 5) L’host avvia la partita
+    window.iniziaPartita = async function () {
+      if (!currentRoomCode) return;
+      await update(ref(db, `stanze/${currentRoomCode}`), {
+        stato: "inCorso",
+        domanda: "Qual è la capitale della Mongolia?"
+      });
+      // L'host stesso verrà inoltrato nel listener di sopra.
+    }
+  </script>
+</head>
+<body>
+  <div id="container">
+    <h1>Gioco Finto - Lobby</h1>
+
+    <!-- Prima schermata: "Crea" o "Entra" -->
+    <div id="iniziale">
+      <button onclick="creaPartita()">Crea Partita</button>
+      <button onclick="unisciti()">Unisciti a Partita</button>
+    </div>
+
+    <!-- Lobby vera e propria (nascosta finché non si entra) -->
+    <div id="lobby" style="display:none;">
+      <h2>Lobby - Codice Stanza: <span id="codiceStanza"></span></h2>
+      <ul id="playersList"></ul>
+      <button id="startBtn" onclick="iniziaPartita()" style="display:none;">
+        Inizia Partita
+      </button>
+    </div>
+  </div>
+</body>
+</html>
